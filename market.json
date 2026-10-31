@@ -1,0 +1,70 @@
+{
+  "gold": {
+    "r24": 14014,
+    "r22": 12838,
+    "date": "31 Oct 2026",
+    "src": "https://cleartax.in/gold-rate-india",
+    "srcName": "ClearTax"
+  },
+  "news": {
+    "updated": "31 Oct 2026",
+    "items": [
+      {
+        "tag": "Gold",
+        "title": "Gold falls about 1.5%: 24K is at ₹14,014 a gram today",
+        "body": "On 31 October 2026, 24K gold was quoted at ₹14,014 per gram (₹1,40,145 per 10 grams) and 22K at ₹12,838 per gram, down ₹211 and ₹193 a gram from the previous day.",
+        "you": "A ₹2,000-per-10g dip is a nice wedding-season gift, but making charges and 3% GST still come along for the ride.",
+        "src": "https://cleartax.in/gold-rate-india",
+        "srcName": "ClearTax"
+      },
+      {
+        "tag": "Income tax",
+        "title": "CBDT proposes new rules and Form 173A for government securities exemptions",
+        "body": "On 27 October 2026 the CBDT proposed the Income-tax (Seventh Amendment) Rules, 2026, adding Rule 281A and Form 173A to furnish information for claiming exemption on interest income and capital gains from government securities under Schedule IV of the Income-tax Act, 2025.",
+        "you": "Only matters if you hold the government securities it covers. Everyone else can keep scrolling.",
+        "src": "https://www.incometax.gov.in/iec/foportal/latest-news",
+        "srcName": "Income Tax Department"
+      },
+      {
+        "tag": "Income tax",
+        "title": "Missed your ITR? The belated return deadline is 31 December 2026",
+        "body": "A belated return for AY 2026-27 can generally be filed until 31 December 2026, with a late fee of ₹1,000 if income is up to ₹5 lakh and ₹5,000 above that.",
+        "you": "Haven't filed yet? Do it before New Year's Eve, not on it.",
+        "src": "https://upstox.com/news/personal-finance/tax/income-tax-calendar-2026-all-important-tax-deadlines-from-august-to-december-taxpayers-should-know/article-198687/",
+        "srcName": "Upstox"
+      },
+      {
+        "tag": "Income tax",
+        "title": "The 21 November ITR extension is for audit cases only",
+        "body": "CBDT Circular 07/2026 moved the ITR due date from 31 October to 21 November 2026 for taxpayers whose accounts need an audit, such as companies, audited businesses and working partners of audited firms. Salaried and non-audit taxpayers are not covered.",
+        "you": "If your only income is salary, this extension isn't yours, so don't let it lull you past 31 December.",
+        "src": "https://taxguru.in/income-tax/income-tax-audit-due-date-extended-21-october-2026-relief.html",
+        "srcName": "TaxGuru"
+      },
+      {
+        "tag": "Banking",
+        "title": "RBI raises the repo rate by 0.25% to 5.50%",
+        "body": "The Monetary Policy Committee raised the repo rate on 7 October 2026 and moved its stance from neutral to calibrated tightening.",
+        "you": "Floating-rate home loan EMIs may creep up. The silver lining: FD rates could follow.",
+        "src": "https://www.scconline.com/blog/post/2026/10/09/rbi-hikes-repo-rate-to-5-50-percent-october-2026/",
+        "srcName": "SCC Online"
+      },
+      {
+        "tag": "Income tax",
+        "title": "Income up to ₹12 lakh is effectively tax-free under the new regime",
+        "body": "Slabs are unchanged for Tax Year 2026-27, and the Section 87A rebate of up to ₹60,000 still applies.",
+        "you": "With the ₹75,000 standard deduction, a gross salary up to ₹12.75 lakh pays zero tax.",
+        "src": "https://cleartax.in/s/income-tax-changes-from-april-2026",
+        "srcName": "ClearTax"
+      },
+      {
+        "tag": "Savings",
+        "title": "PPF stays at 7.1% for October–December 2026",
+        "body": "The Department of Economic Affairs kept the PPF rate at 7.1% for 1 October to 31 December 2026. The annual deposit limit remains ₹500 to ₹1.5 lakh.",
+        "you": "Deposit before the 5th of each month so that month earns interest.",
+        "src": "https://www.business-standard.com/finance/personal-finance/ppf-rate-unchanged-at-7-1-what-investors-need-to-know-this-quarter-126100200411_1.html",
+        "srcName": "Business Standard"
+      }
+    ]
+  }
+}
