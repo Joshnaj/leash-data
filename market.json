@@ -1,19 +1,19 @@
 {
   "gold": {
-    "r24": 14014,
-    "r22": 12838,
-    "date": "31 Oct 2026",
+    "r24": 14152,
+    "r22": 12962,
+    "date": "5 Nov 2026",
     "src": "https://cleartax.in/gold-rate-india",
     "srcName": "ClearTax"
   },
   "news": {
-    "updated": "31 Oct 2026",
+    "updated": "6 Nov 2026",
     "items": [
       {
         "tag": "Gold",
-        "title": "Gold falls about 1.5%: 24K is at ₹14,014 a gram today",
-        "body": "On 31 October 2026, 24K gold was quoted at ₹14,014 per gram (₹1,40,145 per 10 grams) and 22K at ₹12,838 per gram, down ₹211 and ₹193 a gram from the previous day.",
-        "you": "A ₹2,000-per-10g dip is a nice wedding-season gift, but making charges and 3% GST still come along for the ride.",
+        "title": "24K gold is at ₹14,152 a gram",
+        "body": "On 5 November 2026, 24K gold was quoted at ₹14,152 per gram and 22K at ₹12,962 per gram.",
+        "you": "Jewellery prices add making charges and GST on top of this rate.",
         "src": "https://cleartax.in/gold-rate-india",
         "srcName": "ClearTax"
       },
@@ -66,5 +66,11 @@
         "srcName": "Business Standard"
       }
     ]
+  },
+  "silver": {
+    "r999": 210,
+    "date": "6 Nov 2026",
+    "src": "https://www.policybazaar.com/silver-rate/",
+    "srcName": "Policybazaar"
   }
 }
