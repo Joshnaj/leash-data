@@ -1,29 +1,29 @@
 {
   "gold": {
-    "r24": 14152,
-    "r22": 12962,
-    "date": "5 Nov 2026",
-    "src": "https://cleartax.in/gold-rate-india",
-    "srcName": "ClearTax"
+    "r24": 14603,
+    "r22": 13386,
+    "date": "6 Nov 2026",
+    "src": "https://www.goodreturns.in/gold-rates/",
+    "srcName": "Goodreturns"
   },
   "news": {
     "updated": "6 Nov 2026",
     "items": [
       {
         "tag": "Gold",
-        "title": "24K gold is at ₹14,152 a gram",
-        "body": "On 5 November 2026, 24K gold was quoted at ₹14,152 per gram and 22K at ₹12,962 per gram.",
+        "title": "24K gold is at ₹14,603 a gram",
+        "body": "On 6 November 2026, 24K gold was quoted at ₹14,603 per gram and 22K at ₹13,386 per gram.",
         "you": "Jewellery prices add making charges and GST on top of this rate.",
-        "src": "https://cleartax.in/gold-rate-india",
-        "srcName": "ClearTax"
+        "src": "https://www.goodreturns.in/gold-rates/",
+        "srcName": "Goodreturns"
       },
       {
-        "tag": "Income tax",
-        "title": "CBDT proposes new rules and Form 173A for government securities exemptions",
-        "body": "On 27 October 2026 the CBDT proposed the Income-tax (Seventh Amendment) Rules, 2026, adding Rule 281A and Form 173A to furnish information for claiming exemption on interest income and capital gains from government securities under Schedule IV of the Income-tax Act, 2025.",
-        "you": "Only matters if you hold the government securities it covers. Everyone else can keep scrolling.",
-        "src": "https://www.incometax.gov.in/iec/foportal/latest-news",
-        "srcName": "Income Tax Department"
+        "tag": "Banking",
+        "title": "FD rates are being revised after the RBI hike",
+        "body": "A few banks have revised fixed deposit rates since the October repo hike. At the start of November 2026, DCB Bank's top FD rate was 7.50% and Bandhan Bank's 7.45%, while Bank of India and Punjab & Sind Bank led public sector banks at 6.85%.",
+        "you": "A bank's top rate may apply to one specific tenure only, so check the tenure before you book.",
+        "src": "https://www.tradingview.com/news/moodys:3ced57393d09d:0-fd-interest-rates-after-rbi-repo-rate-hike-nov-2026-public-or-private-which-banks-give-highest-fixed-deposit-returns/",
+        "srcName": "Mint"
       },
       {
         "tag": "Income tax",
@@ -68,9 +68,9 @@
     ]
   },
   "silver": {
-    "r999": 210,
+    "r999": 210.1,
     "date": "6 Nov 2026",
-    "src": "https://www.policybazaar.com/silver-rate/",
-    "srcName": "Policybazaar"
+    "src": "https://www.goodreturns.in/silver-rates/",
+    "srcName": "Goodreturns"
   }
 }
