@@ -1,18 +1,18 @@
 {
   "gold": {
-    "r24": 14603,
-    "r22": 13386,
-    "date": "6 Nov 2026",
+    "r24": 14345,
+    "r22": 13149,
+    "date": "7 Nov 2026",
     "src": "https://www.goodreturns.in/gold-rates/",
     "srcName": "Goodreturns"
   },
   "news": {
-    "updated": "6 Nov 2026",
+    "updated": "7 Nov 2026",
     "items": [
       {
         "tag": "Gold",
-        "title": "24K gold is at ₹14,603 a gram",
-        "body": "On 6 November 2026, 24K gold was quoted at ₹14,603 per gram and 22K at ₹13,386 per gram.",
+        "title": "24K gold is at ₹14,345 a gram",
+        "body": "On 7 November 2026, 24K gold was quoted at ₹14,345 per gram and 22K at ₹13,149 per gram.",
         "you": "Jewellery prices add making charges and GST on top of this rate.",
         "src": "https://www.goodreturns.in/gold-rates/",
         "srcName": "Goodreturns"
@@ -68,8 +68,8 @@
     ]
   },
   "silver": {
-    "r999": 210.1,
-    "date": "6 Nov 2026",
+    "r999": 204.9,
+    "date": "7 Nov 2026",
     "src": "https://www.goodreturns.in/silver-rates/",
     "srcName": "Goodreturns"
   }
