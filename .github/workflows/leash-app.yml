@@ -1,0 +1,71 @@
+# Builds the Leash app whenever app/ changes and adds leash-horizon.apk
+# to the "leash-latest" release. Daily market.json updates do not trigger it.
+name: Leash Horizon APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - ".github/workflows/leash-app.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: leash-horizon
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Check the money rules
+        run: npm test
+
+      - name: Create the Android project
+        run: |
+          npm run vendor
+          [ -d android ] || npx cap add android
+          npx @capacitor/assets generate --android --iconBackgroundColor "#e8e3ff" --splashBackgroundColor "#f3f1ff"
+          # Lets Android find its speech service for the mic button.
+          sed -i 's#</manifest>#<queries><intent><action android:name="android.speech.RecognitionService"/></intent></queries></manifest>#' android/app/src/main/AndroidManifest.xml
+          npx cap sync android
+
+      - name: Use the same signing key every time, so updates install over the old app
+        working-directory: .
+        run: mkdir -p ~/.android && cp keystore/debug.keystore ~/.android/debug.keystore
+
+      - name: Build APK
+        working-directory: app/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Add leash-horizon.apk to the "leash-latest" download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk leash-horizon.apk
+          gh release view leash-latest >/dev/null 2>&1 || gh release create leash-latest \
+            --target "$GITHUB_SHA" --title "Leash — your salary, on a leash" --latest \
+            --notes "**leash-horizon.apk** is the current Leash app."
+          gh release upload leash-latest leash-horizon.apk --clobber

@@ -1,0 +1,9 @@
+{
+  "appId": "com.joshnaj.kharcha",
+  "appName": "Leash",
+  "webDir": "www",
+  "android": { "backgroundColor": "#f3f1ff" },
+  "plugins": {
+    "LocalNotifications": { "iconColor": "#5b4fe0" }
+  }
+}
