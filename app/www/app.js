@@ -71,7 +71,9 @@ const P = {
   news: '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M7 9h10M7 13h10M7 17h6"/>',
   pen: '<path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4"/>',
   moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
-  wallet: '<path d="M4 7a2 2 0 0 1 2-2h12v4M4 7v10a2 2 0 0 0 2 2h14V9H6a2 2 0 0 1-2-2zM16 14h.01"/>'
+  wallet: '<path d="M4 7a2 2 0 0 1 2-2h12v4M4 7v10a2 2 0 0 0 2 2h14V9H6a2 2 0 0 1-2-2zM16 14h.01"/>',
+  receipt: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6"/>',
+  jar: '<path d="M7 4h10M8 4v3c-2 1-3 2-3 4v7a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3v-7c0-2-1-3-3-4V4"/>'
 };
 const ico = (n, w = 2) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="' + w + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (P[n] || P.dots) + '</svg>';
 
@@ -83,7 +85,8 @@ const DEFAULT_CATS = [
   { id: 'home', name: 'Home', icon: 'home', c: 2 }, { id: 'groceries', name: 'Family groceries', icon: 'basket', c: 8 },
   { id: 'shop', name: 'Shopping', icon: 'bag', c: 3 },
   { id: 'gold', name: 'Gold', icon: 'coin', c: 4 }, { id: 'bills', name: 'Bills', icon: 'bolt', c: 7 },
-  { id: 'fun', name: 'Fun', icon: 'smile', c: 5 }, { id: 'care', name: 'Self-care', icon: 'heart', c: 6 }, { id: 'atm', name: 'ATM cash', icon: 'cash', c: 2, withdrawal: true }
+  { id: 'fun', name: 'Fun', icon: 'smile', c: 5 }, { id: 'care', name: 'Self-care', icon: 'heart', c: 6 }, { id: 'atm', name: 'ATM cash', icon: 'cash', c: 2, withdrawal: true },
+  { id: 'other', name: 'Other', icon: 'dots', c: 0 }
 ];
 const KINDS = { bill: 'Bill', emi: 'EMI', sub: 'Subscription', save: 'Savings / SIP', home: 'Sent home', remind: 'Reminder only' };
 const BILL_KINDS = ['bill', 'emi', 'sub', 'home'];
@@ -102,7 +105,7 @@ const EXTRAS = [
 const fresh = () => ({
   v: 2, schema: 5, created: dkey(today0()), onboarded: false,
   // payday: day of month 1–31 (31 = last day of the month). payShift: 'none' | 'before' (Friday before a weekend) | 'after' (Monday after).
-  profile: { name: '', salary: 0, payday: 31, payShift: 'before', homePct: 46 },
+  profile: { name: '', salary: 0, payday: 31, payShift: 'before', homePct: 0 },
   items: [], spends: [], cats: DEFAULT_CATS.slice(), goals: [], gold: [],
   settings: { theme: 'light', roast: true, roastTime: '20:00', billReminders: true, remindHour: 9 },
   features: Object.fromEntries(EXTRAS.map((x) => [x.key, x.on])),
@@ -128,7 +131,8 @@ const ensureNewFields = () => {
   const blank = fresh();
   ['features', 'jar', 'silver', 'income', 'chat', 'learned'].forEach((k) => { if (S[k] == null) S[k] = blank[k]; });
   EXTRAS.forEach((x) => { if (S.features[x.key] == null) S.features[x.key] = x.on; });
-  if (S.profile.homePct == null) S.profile.homePct = 0;
+  // The home share percentage is gone: home is a fixed monthly payment like any other.
+  S.profile.homePct = 0;
 };
 const migratePaid = () => S.items.forEach((it) => {
   if (!it.paid) return;
@@ -207,9 +211,9 @@ const poolParts = (cyc) => {
   const rows = cycItems(cyc); const goals = goalsMonthly();
   return { start: false, base: salaryFor(cyc), rows, goals, pool: salaryFor(cyc) - fixedTotal(cyc) - goals };
 };
-// Money out of daily spending: logged spends plus extra money sent home.
-// Spends paid from savings and ATM withdrawals don't count (the cash counts when you spend it).
-const counts = (sp) => !sp.fromSavings && !catOf(sp.cat).withdrawal;
+// Money out of daily spending. Spends paid from savings, ATM withdrawals (the cash counts when you spend it)
+// and credit card spends (they leave the bank when the card bill is paid) don't count.
+const counts = (sp) => !sp.fromSavings && sp.method !== 'card' && !catOf(sp.cat).withdrawal;
 const outflows = () => S.spends.filter(counts);
 const spendsBetween = (a, b) => outflows().filter((s) => s.date >= dkey(a) && s.date < dkey(b));
 // Finished pay periods: leftovers fill the savings jar and overspending comes off the next period.
@@ -243,7 +247,6 @@ const dayCalc = (d) => {
   return { cyc, pool, before, todaySp, daysLeft, limit, left, tomorrow };
 };
 const loggedDays = () => { const set = new Set(S.spends.map((s) => s.date)); Object.keys(S.noSpend).forEach((k) => set.add(k)); [].forEach((l) => { if (l.type === 'sent') set.add(l.date); }); return set; };
-const daysTracked = () => loggedDays().size;
 
 /* ---------------- tax (new regime, Tax Year 2026-27) ---------------- */
 const newRegimeTax = (gross) => {
@@ -292,7 +295,7 @@ const learn = (note, cat) => {
 /* ---------------- money sent home ---------------- */
 
 /* ---------------- how a spend was paid ---------------- */
-const METHODS = [['upi', 'UPI / card'], ['cash', 'Cash']];
+const METHODS = [['upi', 'UPI'], ['cash', 'Cash'], ['card', 'Credit card']];
 const fyKey = (d) => { const y = d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1; return y + '-' + String(y + 1).slice(2); };
 
 /* ---------------- market (gold + news) ---------------- */
@@ -403,7 +406,20 @@ const banner = (title, body, when = 'now') => {
   setTimeout(dismiss, 6000);
 };
 const catOf = (id) => S.cats.find((c) => c.id === id) || { name: 'Other', icon: 'dots', c: 2 };
-const catIc = (c, size) => { if (c.id === 'gold') return '<span class="ic goldic"' + (size ? ' style="width:' + size + 'px;height:' + size + 'px"' : '') + '>' + ico('coin') + '</span>'; const [bg, fg] = CAT_COLORS[c.c % CAT_COLORS.length]; return '<span class="ic" style="background:' + bg + ';color:' + fg + (size ? ';width:' + size + 'px;height:' + size + 'px' : '') + '">' + ico(c.icon) + '</span>'; };
+/* 3D icons (Microsoft Fluent Emoji, MIT licence, bundled in icons/). Each one sits on a soft pastel tile.
+   Categories without a picture get their first letter on the tile instead. */
+const TONES = { peach: ['#FFE6D6', '#FFD2B8', '#6E3412'], lav: ['#ECE4FA', '#DCCDF6', '#45307A'], mint: ['#DDF2E3', '#C3E8CF', '#1F5C37'], sky: ['#DDEBFA', '#C6DCF5', '#1D4775'], pink: ['#FCE1EA', '#F7CBDA', '#7A2446'], butter: ['#FFF1C9', '#FBE29F', '#6B4A00'] };
+const TONE_ORDER = ['butter', 'peach', 'sky', 'lav', 'mint', 'pink'];
+const CAT3D = { food: 'hamburger', junk: 'french_fries', travel: 'motor_scooter', home: 'house', groceries: 'shopping_cart', shop: 'shopping_bags', gold: 'coin', bills: 'receipt', fun: 'party_popper', care: 'lotion_bottle', atm: 'bank', other: 'money_with_wings' };
+const catTone = (c) => TONES[c.tone || TONE_ORDER[(Number(c.c) || 0) % TONE_ORDER.length]];
+const tile3d = (pic, tone, size, letter) => '<span class="ic3" style="background:' + tone[1] + ';color:' + tone[2] + (size ? ';width:' + size + 'px;height:' + size + 'px' : '') + '">' +
+  (pic ? '<img src="icons/' + pic + '.png" alt="" draggable="false">' : '<b>' + esc(letter || '?') + '</b>') + '</span>';
+const catIc = (c, size) => tile3d(CAT3D[c.id], catTone(c), size, (c.name || '?').charAt(0).toUpperCase());
+// Monthly payments: picked by kind, with a few names that deserve their own picture.
+const itemPic = (it) => (/\b(pg|rent|room|hostel)\b/i.test(it.name) ? ['bed', 'sky'] : /card/i.test(it.name) ? ['credit_card', 'pink']
+  : it.kind === 'home' ? ['house', 'peach'] : it.kind === 'emi' ? ['bank', 'lav'] : it.kind === 'save' ? ['seedling', 'mint'] : it.kind === 'sub' ? ['spiral_calendar', 'sky'] : it.kind === 'remind' ? ['bell', 'butter'] : ['receipt', 'butter']);
+const itemIc = (it, size) => { const [pic, tone] = itemPic(it); return tile3d(pic, TONES[tone], size); };
+const IN3D = { gift: 'wrapped_gift', bonus: 'party_popper', cashback: 'coin', other: 'money_bag' };
 
 // Calendar date picker: a month grid that drops down under its field (or stays open with inline).
 const fmtDate = (d) => DAY[d.getDay()].slice(0, 3) + ', ' + d.getDate() + ' ' + MON[d.getMonth()] + ' ' + d.getFullYear();
@@ -460,19 +476,20 @@ const onPicked = (f) => {
 /* ---------------- navigation ----------------
    Four tabs. Detail screens open on top of the tab they came from and remember the way back,
    so Settings → Bills → back lands on Settings again. */
-let tab = 'today'; let view = null; const stack = [];
-const TAB_TITLE = { today: 'Today', jars: 'Jars', learn: 'Learn' };
+// Four tabs in a bar at the top, every one a single tap away. Your initial (top left) opens Settings.
+let tab = 'money'; let view = null; const stack = [];
+const TABS = [['money', 'Money', 'wallet'], ['bills', 'Bills', 'receipt'], ['jar', 'Jar', 'jar'], ['gold', 'Gold', 'gem']];
+const TAB_TITLE = { money: 'Money', bills: 'Bills', jar: 'Jar', gold: 'Gold' };
 const viewTitle = (v) => {
   if (!v) return '';
   if (v.startsWith('mod:')) { const m = MODS.find((x) => x.id === v.slice(4)); return m ? m.title : ''; }
-  return { money: 'This month', jar: 'Savings jar', silver: 'Silver locker', settings: 'Settings', bills: 'Bills', cats: 'Categories', news: 'Money news', tax: 'Tax', review: 'Month review', emi: 'EMI payoff', reminders: 'Reminders', gold: 'Gold locker', badges: 'Badges' }[v] || '';
+  return { statement: 'This month', settings: 'Settings', allbills: 'All bills', cats: 'Categories', news: 'Money news', tax: 'Tax', emi: 'EMI payoff', reminders: 'Reminders' }[v] || '';
 };
 const backBtn = () => { const p = stack[stack.length - 1]; const label = p ? (p.view ? viewTitle(p.view) : TAB_TITLE[p.tab]) : TAB_TITLE[tab]; return '<button class="back" data-act="close-view">' + ico('back', 2.2) + esc(label) + '</button>'; };
 const chev = '<span class="chev">' + ico('chev') + '</span>';
 const navRow = (act, icon, title, sub, extra) => '<button class="row nav" data-act="' + act + '"' + (extra || '') + '><span class="ic soft">' + ico(icon) + '</span><span class="grow"><b>' + title + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '</span>' + chev + '</button>';
 
 /* ---------------- screens ---------------- */
-const greet = () => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; };
 
 const roastLine = (c) => {
   const sp = S.spends.filter((s2) => s2.date === dkey(today0()) && counts(s2));
@@ -497,51 +514,22 @@ const whyZero = (c) => {
     (pp.goals ? '<div><span>− Monthly goals</span><b class="num">' + inr(pp.goals) + '</b></div>' : '') +
     '<div class="tot"><span>Left for ' + c.cyc.days + ' days</span><b class="num">' + (pp.pool < 0 ? '−' + inr(-pp.pool) : inr(pp.pool)) + '</b></div></div>' +
     (pp.start && unpaid.length ? '<p class="hint">Already paid or sent any of these before you typed that balance? Mark it paid in Money and it stops being taken out again.</p>' : '') +
-    '<button class="btn soft sm" data-act="money">Open Money</button></section>';
+    '<button class="btn soft sm" data-act="bills">Open Bills</button></section>';
 };
 
-// The next few things that need you: bills, reminders and payday.
-const comingUp = (t, limit) => {
-  const list = []; const c = cycleFor(t);
-  [c, cycleFor(c.end)].forEach((cyc) => cycItems(cyc).forEach((x) => { const dd = daysBetween(t, x.due); if (!x.paid && dd >= -3 && dd <= 14) list.push({ kind: 'item', x, due: x.due, dd }); }));
-  S.items.filter((it) => it.kind === 'remind').forEach((it) => occurrences(it, t, 1).forEach((due) => { const dd = daysBetween(t, due); if (dd <= 14) list.push({ kind: 'remind', it, due, dd }); }));
-  S.reminders.filter((r) => !r.done && r.date).forEach((r) => { const due = parseKey(r.date); const dd = daysBetween(t, due); if (dd <= 14) list.push({ kind: 'one', r, due, dd }); });
-  list.sort((a, b) => a.due - b.due);
-  const out = list.slice(0, limit);
-  const payIn = daysBetween(t, c.end); if (payIn <= 14 && out.length < limit + 1) out.push({ kind: 'pay', due: c.end, dd: payIn });
-  return out;
-};
 const whenTxt = (dd) => (dd < 0 ? -dd + 'd late' : dd === 0 ? 'Today' : dd === 1 ? 'Tomorrow' : 'In ' + dd + ' days');
-const upRow = (u) => {
-  if (u.kind === 'pay') return '<div class="row up"><span class="ic" style="background:var(--mint);color:var(--mint-ink)">' + ico('wallet') + '</span><span class="grow"><b>Payday</b><span>' + short(u.due) + '</span></span><span class="when">' + whenTxt(u.dd) + '</span></div>';
-  if (u.kind === 'one') return '<button class="row up" data-act="reminders"><span class="ic soft">' + ico('bell') + '</span><span class="grow"><b>' + esc(u.r.text) + '</b><span>Reminder · ' + short(u.due) + '</span></span><span class="when' + (u.dd <= 2 ? ' hot' : '') + '">' + whenTxt(u.dd) + '</span></button>';
-  if (u.kind === 'remind') return '<button class="row up" data-act="reminders"><span class="ic soft">' + ico('bell') + '</span><span class="grow"><b>' + esc(u.it.name) + '</b><span>Monthly reminder · ' + short(u.due) + '</span></span><span class="when' + (u.dd <= 2 ? ' hot' : '') + '">' + whenTxt(u.dd) + '</span></button>';
-  const it = u.x.it;
-  return '<button class="row up" data-act="money"><span class="ic soft">' + ico(it.kind === 'home' ? 'heart' : it.kind === 'save' ? 'piggy' : it.kind === 'sub' ? 'repeat' : 'bolt') + '</span><span class="grow"><b>' + esc(it.name) + '</b><span>' + (KINDS[it.kind] || 'Bill') + ' · ' + inr(it.amount) + '</span></span><span class="when' + (u.dd <= 2 ? ' hot' : '') + '">' + whenTxt(u.dd) + '</span></button>';
-};
-const spendRow = (sp, withDate) => {
-  const ct = catOf(sp.cat); const tags = (sp.fromSavings ? '<i class="tg sv">SAVINGS</i>' : '') + (sp.method === 'cash' && !ct.withdrawal ? '<i class="tg cs">CASH</i>' : '');
-  const when = withDate ? short(parseKey(sp.date)) : new Date(sp.ts).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
-  return '<button class="row" data-act="edit-spend" data-id="' + sp.id + '">' + catIc(ct) + '<span class="grow"><b>' + esc(sp.note || ct.name) + tags + '</b><span>' + esc(ct.name) + ' · ' + when + '</span></span><span class="amt num' + (counts(sp) ? '' : ' muted') + '">' + inr(sp.amt) + '</span></button>';
-};
 
-/* ---------------- today ---------------- */
+/* ---------------- money tab ---------------- */
 let ellieFlash = null; // a short reaction after you tell Ellie something
 let thinking = false;
 const CHAT_LIMIT = 12;
 const chatToday = () => S.chat.filter((m) => m.day === dkey(today0())).slice(-CHAT_LIMIT);
 let scrollChat = false;
-const say = (who, text, extra) => { scrollChat = true; S.chat = chatToday().concat([{ id: uid(), day: dkey(today0()), who, text, ...extra }]); };
+const say = (who, text, extra) => { scrollChat = true; S.chat = chatToday().concat([{ id: uid(), day: dkey(today0()), at: Date.now(), who, text, ...extra }]); };
 const spentThisPeriod = (c) => c.before + c.todaySp;
 const currentMood = (c, t) => (ellieFlash && Date.now() - ellieFlash.at < 8000 ? ellieFlash.mood : E.moodFor({
   pool: c.pool, spent: spentThisPeriod(c), left: c.pool - spentThisPeriod(c), daysPassed: daysBetween(c.cyc.start, t) + 1, days: c.cyc.days,
   noSpendToday: !!S.noSpend[dkey(t)] && !c.todaySp }));
-const ELLIE_LINES = {
-  happy: (c) => (c.daysLeft > 1 ? 'Spend nothing more and tomorrow is ' + inr(c.tomorrow) + '.' : 'Last day before payday.'),
-  proud: (c) => 'A no-spend day! Tomorrow grows to ' + inr(c.tomorrow) + '.',
-  careful: (c) => 'A little fast. Tomorrow is ' + inr(c.tomorrow) + '.',
-  worried: (c) => (c.pool - spentThisPeriod(c) < 0 ? 'We went over by ' + inr(spentThisPeriod(c) - c.pool) + '. It will come off next pay.' : 'Only ' + inr(Math.max(0, c.pool - spentThisPeriod(c))) + ' left till payday.')
-};
 const chatRow = (r) => '<div class="crow">' + (r.cat ? catIc(catOf(r.cat), 28) : '<span class="ic soft">' + ico(r.icon || 'wallet') + '</span>') + '<span>' + esc(r.label) + '</span><b class="num">' + inr(r.amt) + '</b></div>';
 const chatBubble = (m) => {
   if (m.who === 'me') return '<div class="bub me">' + esc(m.text) + '</div>';
@@ -549,38 +537,112 @@ const chatBubble = (m) => {
     (m.ask ? '<div class="askbtns"><button class="btn sm" data-act="ask-pay" data-id="' + m.id + '">Yes, it\'s my pay</button><button class="btn soft sm" data-act="ask-spend" data-id="' + m.id + '">No, I spent it</button></div>' : '') +
     (m.undo ? '<button class="link" data-act="chat-undo" data-id="' + m.id + '">Undo</button>' : '') + '</div>';
 };
-const renderToday = () => {
-  const t = today0(); const c = dayCalc(t);
-  const mood = currentMood(c, t);
+const signed = (n) => (n < 0 ? '−' + inr(-n) : inr(n));
+// Money tab: what's safe today, what went out and came in, and where it went, one row per kind of payment
+// or spending category (biggest first). Every row opens the month's statement.
+const renderHome = () => {
+  const t = today0(); const c = dayCalc(t); const cyc = c.cyc; const pp = poolParts(cyc);
+  const leftTill = c.pool - c.before - c.todaySp;
+  const fill = c.pool > 0 ? clamp(leftTill / c.pool * 100, 3, 100) : 3;
   const latest = chatToday().filter((m) => m.who === 'ellie').pop();
-  const payDue = daysBetween(c.cyc.start, t) <= 6 && !S.paylog[c.cyc.key] && !(S.start && parseKey(S.created) >= c.cyc.start);
-  return '<div class="screen today">' +
-    '<div class="bighead"><div><span class="kicker">' + DAY[t.getDay()] + ', ' + short(t) + '</span><h1>' + (S.profile.name ? 'Hi, ' + esc(S.profile.name) : 'Hi there') + '</h1></div>' +
-    '<button class="roundbtn" data-act="settings" aria-label="Settings">' + ico('gear') + '</button></div>' +
-    '<section class="ehero" aria-label="Safe to spend today">' + window.ellieSvg(mood, 168) +
-      '<span class="k">Safe to spend today</span><b class="num' + (c.left < 0 ? ' over' : '') + '">' + (c.left < 0 ? '−' + inr(-c.left) : inr(c.left)) + '</b>' +
-      '<button class="eline" data-act="limit-info">' + esc(ELLIE_LINES[mood](c)) + '</button></section>' +
+  const showBubble = thinking || (latest && (latest.ask || Date.now() - (latest.at || 0) < 5 * 60000));
+  const payDue = daysBetween(cyc.start, t) <= 6 && !S.paylog[cyc.key] && !(S.start && parseKey(S.created) >= cyc.start);
+  const wentOut = pp.rows.reduce((n, x) => n + x.amount, 0) + spentIn(cyc);
+  const cameIn = pp.base + extrasIn(cyc);
+  // Where it went: grouped monthly payments, then spending by category.
+  const rows = [];
+  const grp = (kind, name, pic, tone) => { const list = pp.rows.filter((x) => x.it.kind === kind && !itemPic(x.it)[0].match(/bed|credit_card/));
+    if (list.length) rows.push({ pic, tone, name, sub: list.length > 1 ? list.map((x) => x.it.name).join(', ') : (list[0].paid ? 'Paid' : 'Due ' + short(list[0].due)), amt: list.reduce((n, x) => n + x.amount, 0) }); };
+  grp('home', 'Home', 'house', 'peach'); grp('emi', 'Loans and EMIs', 'bank', 'lav'); grp('save', 'Saved', 'seedling', 'mint');
+  pp.rows.filter((x) => !['home', 'emi', 'save'].includes(x.it.kind) || /bed|credit_card/.test(itemPic(x.it)[0])).forEach((x) => { const [pic, tone] = itemPic(x.it); rows.push({ pic, tone, name: x.it.name, sub: x.paid ? 'Paid' : 'Due ' + short(x.due), amt: x.amount }); });
+  const byCat = {}; S.spends.filter((sp) => sp.date >= dkey(cyc.start) && sp.date < dkey(cyc.end) && !sp.fromSavings && !catOf(sp.cat).withdrawal)
+    .forEach((sp) => { const b = byCat[sp.cat] = byCat[sp.cat] || { n: 0, amt: 0, card: 0 }; b.n++; b.amt += Number(sp.amt) || 0; if (sp.method === 'card') b.card += Number(sp.amt) || 0; });
+  Object.entries(byCat).forEach(([id, b]) => { const ct = catOf(id); rows.push({ cat: ct, name: ct.name, sub: b.n + ' spend' + (b.n === 1 ? '' : 's') + (b.card ? ', ' + inr(b.card) + ' on card' : ''), amt: b.amt }); });
+  rows.sort((a, b) => b.amt - a.amt);
+  const row = (r) => { const tone = r.cat ? catTone(r.cat) : TONES[r.tone];
+    return '<button class="wrow3" data-act="statement" style="background:' + tone[0] + ';color:' + tone[2] + '">' + (r.cat ? catIc(r.cat, 46) : tile3d(r.pic, tone, 46)) +
+      '<span class="grow"><b>' + esc(r.name) + '</b><span>' + esc(r.sub) + '</span></span><b class="num">' + inr(r.amt) + '</b></button>'; };
+  return '<div class="screen home">' +
+    '<section class="jarhero" aria-label="Safe to spend today"><span class="jarart" aria-hidden="true"><i class="lid"></i><i class="body"><i class="fill" style="height:' + fill + '%"></i></i></span>' +
+      '<span class="jartxt"><span class="k">Safe to spend today</span><b class="num' + (c.left < 0 ? ' over' : '') + '">' + signed(c.left) + '</b>' +
+      '<button class="jarsub" data-act="limit-info">' + signed(leftTill) + ' left · ' + c.daysLeft + ' day' + (c.daysLeft === 1 ? '' : 's') + ' to payday</button></span></section>' +
     (S.profile.salary || S.start ? '' : '<button class="btn soft" data-act="edit-profile">Add your salary to see your number</button>') +
     whyZero(c) +
     (payDue ? '<section class="group padded stack"><b>Did your pay come?</b><div class="btns"><button class="btn sm" data-act="pay-yes">Yes, it came</button><button class="btn soft sm" data-act="pay-other">Different amount</button></div></section>' : '') +
-    '<section class="chat" aria-label="Ellie\'s latest reply" aria-live="polite">' +
-      (thinking ? '<div class="bub ellie dots3"><i></i><i></i><i></i></div>' : latest ? chatBubble(latest) : '') + '</section>' +
-    '<form class="tellbar" data-form="tell" autocomplete="off">' +
-      '<button class="addbtn" type="button" data-act="add" aria-label="Add by hand">' + ico('plus') + '</button>' +
-      '<input id="tell-in" name="t" placeholder="Tell Ellie..." aria-label="Tell Ellie what happened" enterkeyhint="send">' +
-      '<button class="micbtn" type="button" data-act="mic" aria-label="Speak to Ellie">' + ico('mic') + '</button>' +
-      '<button class="sendbtn" type="submit" aria-label="Send to Ellie">' + ico('send') + '</button></form>' +
+    (showBubble ? '<section class="chat" aria-label="Ellie\'s latest reply" aria-live="polite">' + (thinking ? '<div class="bub ellie dots3"><i></i><i></i><i></i></div>' : chatBubble(latest)) + '</section>' : '') +
+    '<div class="flowcards"><button class="flow out" data-act="statement"><img src="icons/money_with_wings.png" alt=""><span>Went out</span><b class="num">' + inr(wentOut) + '</b></button>' +
+      '<button class="flow in" data-act="statement"><img src="icons/money_bag.png" alt=""><span>Came in</span><b class="num">' + inr(cameIn) + '</b></button></div>' +
+    '<div class="sechead"><h2>Where it went</h2><button class="link" data-act="statement">' + MONTH[cycMonth(cyc).getMonth()] + '</button></div>' +
+    (rows.length ? '<div class="wlist3">' + rows.map(row).join('') + '</div>' : '<p class="empty">Nothing yet this month. Tap + when you spend.</p>') +
+    '<button class="link centered" data-act="statement">See every entry</button>' +
+    '<div class="fabs"><button class="micfab" data-act="mic" aria-label="Speak a spend">' + ico('mic') + '</button><button class="addfab" data-act="add" aria-label="Add money">' + ico('plus', 2.6) + '</button></div>' +
     '</div>';
 };
 
-/* ---------------- jars ---------------- */
+// Bills tab: this month's payments with a clear state. Green = paid, yellow = to pay, red = due tomorrow, today or late.
+const billState = (x, t) => { if (x.paid) return 'paid'; const dd = daysBetween(t, x.due); return dd <= 1 ? 'late' : 'due'; };
+const billPill = (x, t) => { const st = billState(x, t); const dd = daysBetween(t, x.due); const home = x.it.kind === 'home';
+  const label = st === 'paid' ? ico('check', 3) + (home ? 'Sent' : 'Paid') : st === 'late' ? '! ' + (dd < 0 ? -dd + 'd late' : dd === 0 ? 'Due today' : 'Due tomorrow') : 'Due ' + short(x.due);
+  return '<button class="bpill st-' + st + '" data-act="toggle-paid" data-id="' + x.it.id + '" data-key="' + x.key + '" aria-pressed="' + x.paid + '" aria-label="' + esc(x.it.name) + ': ' + (x.paid ? 'paid, tap to undo' : 'tap when paid') + '">' + label + '</button>'; };
+const billRow3 = (x, t) => { const e = x.it.kind === 'emi' ? emiInfo(x.it) : null;
+  const sub = e ? (e.left ? e.left + ' left · ends ' + e.freeBy : 'Last one') : (KINDS[x.it.kind] || 'Bill') + ' · every month';
+  return '<div class="brow">' + '<button class="bmain" data-act="edit-item" data-id="' + x.it.id + '">' + itemIc(x.it, 46) + '<span class="grow"><b>' + esc(x.it.name) + '</b><span>' + esc(sub) + '</span></span></button>' +
+    '<span class="bend"><b class="num">' + inr(x.amount) + '</b>' + billPill(x, t) + '</span></div>'; };
+const renderBillsTab = () => {
+  const t = today0(); const cyc = cycleFor(t); const next = cycleFor(cyc.end);
+  const now = cycItems(cyc); const later = cycItems(next).filter((x) => !now.some((y) => y.it.id === x.it.id && y.key === x.key));
+  const unpaid = now.filter((x) => !x.paid); const late = unpaid.filter((x) => billState(x, t) === 'late');
+  const total = now.reduce((n, x) => n + x.amount, 0); const owe = unpaid.reduce((n, x) => n + x.amount, 0);
+  const summary = !now.length ? '' : !unpaid.length
+    ? '<section class="bsum st-paid"><img src="icons/check_mark_button.png" alt=""><span><b>All ' + now.length + ' paid</b><span>' + inr(total) + ' done for ' + MONTH[cycMonth(cyc).getMonth()] + '</span></span></section>'
+    : '<section class="bsum st-' + (late.length ? 'late' : 'due') + '"><img src="icons/' + (late.length ? 'bell' : 'hourglass_not_done') + '.png" alt=""><span><b>' + unpaid.length + ' to pay · ' + inr(owe) + '</b><span>' + esc(unpaid[0].it.name) + ' is due ' + (daysBetween(t, unpaid[0].due) <= 1 ? whenTxt(daysBetween(t, unpaid[0].due)).toLowerCase() : 'on ' + short(unpaid[0].due)) + '</span></span></section>';
+  return '<div class="screen bills">' + summary +
+    '<div class="legend" aria-label="What the colours mean"><span class="bpill st-paid">' + ico('check', 3) + 'Paid</span><span class="bpill st-due">To pay</span><span class="bpill st-late">! Due tomorrow or late</span></div>' +
+    (now.length ? '<div class="blist">' + now.map((x) => billRow3(x, t)).join('') + '</div>'
+      : '<section class="group padded stack"><p class="empty">Rent, EMIs, PPF, money for home: add them once and Leash takes them out before your daily number.</p></section>') +
+    (later.length ? '<div class="sechead"><h2>Next month</h2><span class="aside">From ' + short(next.start) + '</span></div><div class="blist">' + later.map((x) => billRow3(x, t)).join('') + '</div>' : '') +
+    '<div class="btns"><button class="btn" data-act="new-item">' + ico('plus') + 'Add a bill</button><button class="btn soft" data-act="allbills">See all</button></div>' +
+    '</div>';
+};
+
+// Jar tab: leftover money from each finished month, ready to take out.
+const renderJarTab = () => {
+  const jar = jarBalance(); const closed = ledger().closed.filter((x) => x.toJar > 0).reverse();
+  const c = dayCalc(today0()); const leftTill = Math.max(0, c.pool - c.before - c.todaySp);
+  const fill = jar > 0 ? clamp(jar / Math.max(jar, Number(S.profile.salary) || jar) * 100 + 10, 12, 92) : 6;
+  return '<div class="screen jar">' +
+    '<section class="bigjar" aria-label="Savings jar balance"><span class="jarart big" aria-hidden="true"><i class="lid"></i><i class="body"><i class="fill" style="height:' + fill + '%"></i></i></span>' +
+      '<b class="num">' + inr(jar) + '</b><span>' + (jar > 0 ? 'Saved from your leftover money' : 'On payday, whatever is left drops in here') + '</span></section>' +
+    '<div class="brow"><span class="bmain">' + tile3d('spiral_calendar', TONES.sky, 46) + '<span class="grow"><b>Next drop</b><span>' + DAY[c.cyc.end.getDay()] + ', ' + short(c.cyc.end) + '</span></span></span><span class="bend"><b class="num">up to ' + inr(leftTill) + '</b></span></div>' +
+    (closed.length ? '<div class="sechead"><h2>Dropped in</h2></div><section class="group">' + closed.map((x) => '<div class="row"><span class="grow"><b>From ' + short(parseKey(x.key)) + ' pay</b></span><b class="num">' + inr(x.toJar) + '</b></div>').join('') + '</section>' : '') +
+    (S.jar.out.length ? '<div class="sechead"><h2>Taken out</h2></div><section class="group">' + S.jar.out.slice().reverse().map((x) => '<div class="row"><span class="grow"><b>' + short(parseKey(x.date)) + '</b></span><b class="num">−' + inr(x.amt) + '</b></div>').join('') + '</section>' : '') +
+    '<button class="btn full" data-act="jar-out">Take out</button></div>';
+};
+
+// Gold tab: the shiny gold and silver lockers, as before, on one page.
+const renderGoldTab = () => {
+  const gt = goldTotals(); const st = silverTotals(); const need = S.goldTarget ? Math.max(0, S.goldTarget - gt.grams) : 0;
+  return '<div class="screen goldtab">' + goldCard(gt, true) +
+    '<section class="group">' + (S.gold.length ? S.gold.map((x) => '<button class="row" data-act="edit-gold" data-id="' + x.id + '"><span class="grow"><b>' + esc(x.note || 'Gold') + '</b><span>' + x.karat + 'K' + (x.date ? ' · ' + short(parseKey(x.date)) : '') + '</span></span><b class="num">' + x.grams + ' g</b></button>').join('')
+      : '<p class="empty">Add a chain, ring or coin to see what it\'s worth today.</p>') + '</section>' +
+    '<div class="goldsell"><span>If you sold today</span><b class="num">' + inr(gt.sell) + '</b><span>after a ' + S.goldCut + '% jeweller\'s cut</span>' +
+      '<div class="seg">' + [2, 5, 8, 10].map((n) => '<button aria-pressed="' + (Number(S.goldCut) === n) + '" data-act="gold-cut" data-v="' + n + '">' + n + '%</button>').join('') + '</div></div>' +
+    '<section class="gold silver lg"><div class="gl"><span class="gk">' + ico('gem') + 'Silver locker</span><span class="gv num">' + st.grams + ' g</span><span class="gs">' + (st.grams ? 'Worth about ' + inr(st.value) : 'Add your silver to see its value') + '</span>' +
+      (st.g ? '<span class="gs rate">' + esc(st.g.date) + ': ' + inr(st.g.r999) + ' a gram</span>' : '<span class="gs rate">Silver rate not available yet</span>') + '</div></section>' +
+    (S.silver.length ? '<section class="group">' + S.silver.map((x) => '<button class="row" data-act="edit-silver" data-id="' + x.id + '"><span class="grow"><b>' + esc(x.note || 'Silver') + '</b></span><b class="num">' + x.grams + ' g</b></button>').join('') + '</section>' : '') +
+    '<button class="btn soft full" data-act="add-silver">Add silver</button>' +
+    '<section class="group padded stack"><div class="split"><b>Gold goal</b><button class="link" data-act="gold-goal">' + (S.goldTarget ? 'Change' : 'Set one') + '</button></div>' +
+      (S.goldTarget ? '<p class="hint">' + (need ? need.toFixed(2) + ' g to go ≈ ' + inr(need * goldRate(22)) + ' at today\'s 22K rate.' : 'Goal reached. Shiny.') + '</p>' : '<p class="hint">Pick a number of grams to own, and Leash tracks how close you are.</p>') + '</section>' +
+    (gt.g && gt.g.src ? '<p class="hint centered">Rates from ' + esc(gt.g.srcName || 'source') + '. City rates vary.</p>' : '') + '</div>';
+};
+
 /* ---------------- money in: gifts, bonus, cashback ---------------- */
 const IN_KINDS = [['gift', 'Gift', 'gift'], ['bonus', 'Bonus', 'star'], ['cashback', 'Cashback', 'repeat'], ['other', 'Other', 'wallet']];
 const inKind = (k) => IN_KINDS.find((x) => x[0] === k) || IN_KINDS[3];
 const addMoneyIn = (amt, kind, note, date) => { const x = { id: uid(), amt, kind: kind || 'other', note: (note || '').trim(), date: date || dkey(today0()) }; S.income.push(x); return x; };
 const moneyInSheet = (x) => {
   const seg = (name, val, opts) => '<input type="hidden" name="' + name + '" value="' + val + '"><div class="seg">' + opts.map(([v, l]) => '<button type="button" aria-pressed="' + (val === v) + '" data-act="simple-seg" data-v="' + v + '">' + l + '</button>').join('') + '</div>';
-  openSheet(shead(x ? 'Edit money in' : 'Money in') + (x ? '' : '<div class="seg inout"><button type="button" data-act="to-spend">Money out</button><button type="button" aria-pressed="true">Money in</button></div>') +
+  openSheet(shead(x ? 'Edit money in' : 'Money in') + (x ? '' : '<div class="seg inout three"><button type="button" data-act="to-spend">Spent</button><button type="button" data-act="to-pay">Pay</button><button type="button" aria-pressed="true">Came in</button></div>') +
     '<form data-form="moneyin" class="stack">' +
     '<div class="field"><label for="mi-amt">How much?</label><input class="input" id="mi-amt" name="amt" inputmode="numeric" placeholder="₹" value="' + (x ? x.amt : '') + '"></div>' +
     '<div class="field"><span class="flabel">What was it?</span>' + seg('kind', x ? x.kind || 'other' : 'gift', IN_KINDS.map(([v, l]) => [v, l])) + '</div>' +
@@ -599,13 +661,13 @@ const renderMonth = () => {
   const carry = ledger().carryInto[cyc.key] || 0;
   const setAside = pp.rows.reduce((n, x) => n + x.amount, 0);
   const lines = [];
-  lines.push({ date: from, ts: 0, label: pp.start ? 'Starting money' : 'Salary', icon: 'wallet', tone: 'mint', amt: pp.base, act: isNow && !pp.start ? 'pay-other' : '' });
-  if (setAside) lines.push({ date: from, ts: 1, label: 'Home, bills and savings', sub: pp.rows.length + ' payments, tap to ' + (monthOpen ? 'hide' : 'see'), icon: 'bolt', tone: 'lav', amt: -setAside, act: 'month-setaside', group: true });
-  if (carry) lines.push({ date: from, ts: 2, label: carry < 0 ? 'Overspent last month' : 'Carried over', icon: 'info', tone: 'rose', amt: carry });
-  S.income.filter(inCyc).forEach((x) => lines.push({ date: x.date, ts: 3, label: x.note || inKind(x.kind)[1], sub: x.note ? inKind(x.kind)[1] : '', icon: inKind(x.kind)[2], tone: 'mint', amt: Number(x.amt), act: 'edit-moneyin', id: x.id }));
-  S.jar.out.filter(inCyc).forEach((x) => lines.push({ date: x.date, ts: 4, label: 'From savings jar', icon: 'piggy', tone: 'mint', amt: Number(x.amt) }));
+  lines.push({ date: from, ts: 0, label: pp.start ? 'Starting money' : 'Salary', pic: 'money_bag', tone: 'mint', amt: pp.base, act: isNow && !pp.start ? 'pay-other' : '' });
+  if (setAside) lines.push({ date: from, ts: 1, label: 'Home, bills and savings', sub: pp.rows.length + ' payments, tap to ' + (monthOpen ? 'hide' : 'see'), pic: 'receipt', tone: 'lav', amt: -setAside, act: 'month-setaside', group: true });
+  if (carry) lines.push({ date: from, ts: 2, label: carry < 0 ? 'Overspent last month' : 'Carried over', pic: carry < 0 ? 'hourglass_not_done' : 'coin', tone: carry < 0 ? 'pink' : 'mint', amt: carry });
+  S.income.filter(inCyc).forEach((x) => lines.push({ date: x.date, ts: 3, label: x.note || inKind(x.kind)[1], sub: x.note ? inKind(x.kind)[1] : '', pic: IN3D[x.kind] || 'money_bag', tone: 'mint', amt: Number(x.amt), act: 'edit-moneyin', id: x.id }));
+  S.jar.out.filter(inCyc).forEach((x) => lines.push({ date: x.date, ts: 4, label: 'From savings jar', pic: 'coin', tone: 'mint', amt: Number(x.amt) }));
   S.spends.filter(inCyc).forEach((sp) => { const c = catOf(sp.cat); const counted = counts(sp);
-    lines.push({ date: sp.date, ts: sp.ts || 5, label: sp.note || c.name, sub: c.name + (counted ? '' : sp.fromSavings ? ', from savings' : ', not counted'), cat: c, amt: -Number(sp.amt), counted, act: 'edit-spend', id: sp.id }); });
+    lines.push({ date: sp.date, ts: sp.ts || 5, label: sp.note || c.name, sub: c.name + (counted ? '' : sp.fromSavings ? ', from savings' : sp.method === 'card' ? ', on credit card' : ', not counted'), cat: c, amt: -Number(sp.amt), counted, act: 'edit-spend', id: sp.id }); });
   lines.sort((a, b) => (a.date === b.date ? a.ts - b.ts : a.date < b.date ? -1 : 1));
   let bal = 0; lines.forEach((l) => { if (l.counted !== false) bal += l.amt; l.bal = bal; });
   const left = bal; const spent = spentIn(cyc);
@@ -613,10 +675,10 @@ const renderMonth = () => {
   const days = {}; lines.slice().reverse().forEach((l) => { (days[l.date] = days[l.date] || []).push(l); });
   const money = (a) => (a > 0 ? '+' : '−') + inr(Math.abs(a));
   const row = (l) => '<button class="srow"' + (l.act ? ' data-act="' + l.act + '"' + (l.id ? ' data-id="' + l.id + '"' : '') : ' disabled') + '>' +
-    (l.cat ? catIc(l.cat, 30) : '<span class="ic tone-' + l.tone + '">' + ico(l.icon) + '</span>') +
+    (l.cat ? catIc(l.cat, 40) : tile3d(l.pic, TONES[l.tone] || TONES.mint, 40)) +
     '<span class="grow"><b>' + esc(l.label) + '</b>' + (l.sub ? '<span>' + esc(l.sub) + '</span>' : '') + '</span>' +
     '<span class="samt"><b class="num' + (l.amt > 0 ? ' plus' : '') + '">' + money(l.amt) + '</b><span>' + (l.counted === false ? 'not counted' : inr(l.bal) + ' left') + '</span></span></button>' +
-    (l.group && monthOpen ? '<div class="sitems">' + pp.rows.map((x) => '<button class="row" data-act="edit-item" data-id="' + x.it.id + '"><span class="grow"><b>' + esc(x.it.name) + '</b><span>' + (x.paid ? 'Paid' : 'Due ' + short(x.due)) + '</span></span><b class="num">' + inr(x.amount) + '</b></button>').join('') + '</div>' : '');
+    (l.group && monthOpen ? '<div class="sitems">' + pp.rows.map((x) => '<button class="row" data-act="edit-item" data-id="' + x.it.id + '">' + itemIc(x.it, 34) + '<span class="grow"><b>' + esc(x.it.name) + '</b><span>' + (x.paid ? 'Paid' : 'Due ' + short(x.due)) + '</span></span><b class="num">' + inr(x.amount) + '</b></button>').join('') + '</div>' : '');
   const cats = Object.entries(spendsBetween(cyc.start, cyc.end).reduce((m, x) => { m[x.cat] = (m[x.cat] || 0) + Number(x.amt); return m; }, {})).sort((a, b) => b[1] - a[1]);
   const top = Math.max(1, ...cats.map((x) => x[1]));
   const label = (k) => { const d = parseKey(k); const n = daysBetween(d, today0()); return (n === 0 ? 'Today' : n === 1 ? 'Yesterday' : DAY[d.getDay()].slice(0, 3) + ', ' + short(d)) + (k === from ? ', payday' : ''); };
@@ -632,34 +694,6 @@ const renderMonth = () => {
 };
 const silverRate = () => { const m = market().silver || (window.KH_MARKET || {}).silver; return m && Number(m.r999) > 0 ? m : null; };
 const silverTotals = () => { const g = silverRate(); const grams = S.silver.reduce((n, x) => n + (Number(x.grams) || 0), 0); return { g, grams, value: g ? grams * g.r999 : 0 }; };
-const tileRate = (key) => { if (key === 'gold') { const g = market().gold; return g ? inr(g.r22) + ' a gram' : ''; } if (key === 'silver') { const g = silverRate(); return g ? inr(g.r999) + ' a gram' : ''; } return ''; };
-const tile = (x) => '<button class="tile ' + x.tone + '" data-act="' + x.act + '"' + (x.id ? ' data-id="' + x.id + '"' : '') + '><span class="tic">' + ico(x.icon) + '</span><span class="tlabel"><b>' + esc(x.title) + '</b>' + (tileRate(x.key) ? '<span>' + tileRate(x.key) + '</span>' : '') + '</span></button>';
-const extraTiles = (home) => EXTRAS.filter((x) => x.home === home && S.features[x.key]).map(tile).join('');
-const renderJars = () => {
-  const c = dayCalc(today0()); const left = c.pool - spentIn(c.cyc);
-  return '<div class="screen">' +
-    '<div class="bighead"><div><h1>Jars</h1></div><button class="roundbtn" data-act="settings" aria-label="Settings">' + ico('gear') + '</button></div>' +
-    '<section class="group padded leftcard"><span class="k">Left till payday</span><b class="big num' + (left < 0 ? ' over' : '') + '">' + (left < 0 ? '−' + inr(-left) : inr(left)) + '</b>' +
-      '<span class="sub">' + c.daysLeft + ' day' + (c.daysLeft === 1 ? '' : 's') + ' to go</span></section>' +
-    '<h2 class="grouphead">My money</h2><section class="tilegrid">' +
-      tile({ act: 'money', icon: 'cal', title: 'This month', tone: 'lav' }) + extraTiles('jars') + '</section></div>';
-};
-const renderJar = () => {
-  const jar = jarBalance(); const closed = ledger().closed.filter((x) => x.toJar > 0).reverse();
-  return '<div class="screen">' + backBtn() + '<div class="bighead"><div><h1>Savings jar</h1></div></div>' +
-    '<section class="group padded leftcard"><b class="big num">' + inr(jar) + '</b><span class="sub">Leftover money lands here on payday</span></section>' +
-    (closed.length ? '<section class="plainrows">' + closed.map((x) => '<div class="split"><span>From ' + short(parseKey(x.key)) + ' pay</span><b class="num">' + inr(x.toJar) + '</b></div>').join('') + '</section>' : '') +
-    '<span class="spacer"></span><button class="btn soft full" data-act="jar-out">Take out</button></div>';
-};
-const renderSilver = () => {
-  const st = silverTotals();
-  return '<div class="screen">' + backBtn() + '<div class="bighead"><div><h1>Silver locker</h1></div></div>' +
-    '<section class="gold silver lg"><div class="gl"><span class="gk">' + ico('gem') + 'Your silver</span><span class="gv num">' + st.grams + ' g</span><span class="gs">' + (st.grams ? 'Worth about ' + inr(st.value) : 'Add your silver to see its value') + '</span>' +
-      (st.g ? '<span class="gs rate">' + esc(st.g.date) + ': ' + inr(st.g.r999) + ' a gram</span>' : '<span class="gs rate">Silver rate not available yet</span>') + '</div></section>' +
-    (S.silver.length ? '<section class="group">' + S.silver.map((x) => '<button class="row nav" data-act="edit-silver" data-id="' + x.id + '"><span class="ic silverchip">' + ico('gem') + '</span><span class="grow"><b>' + esc(x.note || 'Silver') + '</b></span><b class="num">' + x.grams + ' g</b></button>').join('') + '</section>' : '') +
-    (st.g && st.g.src ? '<p class="hint centered">Rate from ' + esc(st.g.srcName || 'source') + '. City rates vary.</p>' : '') +
-    '<span class="spacer"></span><button class="btn soft full" data-act="add-silver">Add silver</button></div>';
-};
 const silverSheet = (x) => {
   simpleSheet(x ? 'Edit silver' : 'Add silver', [{ name: 'note', label: 'What is it?', value: x ? x.note : '', placeholder: 'Anklets' }, { name: 'grams', label: 'Grams', numeric: true, value: x ? x.grams : '', placeholder: 'g' }],
     (d) => { const grams = Number(d.grams); if (!(grams > 0)) return false; const note = String(d.note || '').trim(); if (x) Object.assign(x, { grams, note }); else S.silver.push({ id: uid(), grams, note }); return 'Silver saved'; },
@@ -667,31 +701,7 @@ const silverSheet = (x) => {
   if (x) sheetState.editId = x.id;
 };
 
-/* ---------------- learn ---------------- */
-const cardHtml = (c, withBtn) => '<article class="group padded learncard"><svg viewBox="0 0 280 130" role="img" aria-label="Picture for ' + esc(c.title) + '"><rect width="280" height="130" rx="18" fill="#EEEAFE"/>' + window.LEASH_CARD_PICS[c.id] + '</svg>' +
-  '<h2>' + esc(c.title) + '</h2>' + c.lines.map((l) => '<p>' + esc(l) + '</p>').join('') + '<p class="remember">' + esc(c.remember) + '</p>' +
-  (withBtn ? '<button class="btn full" data-act="card-got" data-id="' + c.id + '">Got it</button>' : '') + '</article>';
-const renderLearn = () => {
-  const cards = window.LEASH_CARDS; const open = E.unlockedCards(daysTracked(), cards.length);
-  const done = cards.filter((c) => S.learned.includes(c.id));
-  const now = cards.slice(0, open).find((c) => !S.learned.includes(c.id));
-  const extras = extraTiles('learn');
-  return '<div class="screen">' +
-    '<div class="bighead"><div><h1>Learn</h1><span class="kicker">' + done.length + ' of ' + cards.length + ' learned</span></div><button class="roundbtn" data-act="settings" aria-label="Settings">' + ico('gear') + '</button></div>' +
-    (now ? cardHtml(now, true) : '<section class="group padded"><b>' + (done.length === cards.length ? 'You learned every card!' : 'All caught up!') + '</b><p class="sub">' + (done.length === cards.length ? 'More cards are coming.' : 'Your next card comes after two more days with Ellie.') + '</p></section>') +
-    (extras ? '<section class="tilegrid">' + extras + '</section>' : '') +
-    (done.length ? '<h2 class="grouphead">My collection</h2><section class="group">' + done.map((c) => '<button class="row nav" data-act="card-open" data-id="' + c.id + '"><span class="ic soft">' + ico('check') + '</span><span class="grow"><b>' + esc(c.title) + '</b></span></button>').join('') + '</section>' : '') +
-    '<p class="hint centered">Simple explanations, not financial advice. Rules can change.</p></div>';
-};
 
-const billRow = (x, t) => {
-  const dd = daysBetween(t, x.due); const k = x.it.kind;
-  const cls = x.paid ? 'paid' : k === 'save' ? 'save' : k === 'home' ? 'home' : dd <= 2 ? 'soon' : '';
-  const sub = [KINDS[k] || 'Bill', x.amount ? inr(x.amount) : '', x.it.end ? 'until ' + MON[Number(x.it.end.slice(5, 7)) - 1] + ' ' + x.it.end.slice(2, 4) : ''].filter(Boolean).join(' · ');
-  return '<div class="row"><span class="due ' + cls + '"><b>' + x.due.getDate() + '</b><span>' + MON[x.due.getMonth()] + '</span></span>' +
-    '<button class="grow" style="border:0;background:none;padding:0;text-align:left" data-act="edit-item" data-id="' + x.it.id + '"><b>' + esc(x.it.name) + '</b><span>' + esc(sub) + '</span></button>' +
-    '<button class="pill" aria-pressed="' + x.paid + '" data-act="toggle-paid" data-id="' + x.it.id + '" data-key="' + x.key + '">' + (x.paid ? (k === 'home' ? 'Sent' : 'Paid') : (k === 'home' ? 'Mark sent' : 'Mark paid')) + '</button></div>';
-};
 const emiInfo = (it) => {
   if (!it.end || !it.start) return null;
   const [sy, sm] = it.start.split('-').map(Number); const [ey, em] = it.end.split('-').map(Number);
@@ -711,23 +721,19 @@ const goldCard = (gt, big) => '<div class="gold' + (big ? ' lg' : '') + '"' + (b
 /* ---------------- settings tab ---------------- */
 const renderSettings = () => {
   const sw = (key, label, sub) => '<div class="row"><span class="grow"><b>' + label + '</b><span>' + sub + '</span></span><button class="switch" role="switch" aria-checked="' + !!S.settings[key] + '" aria-label="' + label + '" data-act="toggle-setting" data-key="' + key + '"></button></div>';
-  const extra = (x) => '<div class="row"><span class="ic soft">' + ico(x.icon) + '</span><span class="grow"><b>' + x.title + '</b><span>' + x.sub + '</span></span><button class="switch" role="switch" aria-checked="' + !!S.features[x.key] + '" aria-label="' + x.title + '" data-act="toggle-extra" data-key="' + x.key + '"></button></div>';
-  const pct = Number(S.profile.homePct) || 0;
   return '<div class="screen">' +
-    '<div class="bighead"><div><h1>Settings</h1></div></div>' +
-    '<h2 class="grouphead">Your money</h2><section class="group">' +
-    navRow('edit-profile', 'wallet', 'Your name and salary', S.profile.salary ? inr(S.profile.salary) + ' a month' + (S.profile.homePct ? ', ' + S.profile.homePct + '% home' : '') : 'Add your salary') +
+    '<div class="mehead"><span class="me big">' + esc((S.profile.name || '?').charAt(0).toUpperCase()) + '</span><span><b>' + esc(S.profile.name || 'You') + '</b><span>Set once, then forget</span></span></div>' +
+    '<h2 class="grouphead">Money</h2><section class="group">' +
+    navRow('edit-profile', 'wallet', 'Name and salary', S.profile.salary ? inr(S.profile.salary) + ' a month' : 'Add your salary') +
     navRow('payday', 'cal', 'Payday', esc(payRule())) +
     (S.start ? navRow('clear-start', 'wallet', 'Starting balance', inr(S.start.left) + ', tap to remove') : '') +
-    navRow('bills', 'bolt', 'Bills, EMIs and savings', S.items.length + ' set up') +
     navRow('cats', 'dots', 'Categories', S.cats.length + ' categories') + '</section>' +
-    '<h2 class="grouphead">Extras</h2><p class="hint groupnote">Switch on what you want. It appears in Jars or Learn.</p><section class="group">' + EXTRAS.map(extra).join('') + '</section>' +
-    '<h2 class="grouphead">Ellie</h2><section class="group">' +
-    navRow('ai-key', 'pen', 'Google AI', window.LeashAI.getKey() ? 'Connected' : 'Add your free key') +
-    sw('roast', 'Evening reminder', 'Every night at ' + esc(S.settings.roastTime)) +
-    sw('billReminders', 'Bill reminders', 'Bills and payday, at ' + (S.settings.remindHour || 9) + ' am') + '</section>' +
+    '<h2 class="grouphead">Pings</h2><section class="group">' +
+    sw('roast', 'Evening nudge', 'Every night at ' + esc(S.settings.roastTime)) +
+    sw('billReminders', 'Bill pings', 'Each bill\'s own reminder, at ' + (S.settings.remindHour || 9) + ' am') + '</section>' +
     (isNative ? '' : '<p class="hint groupnote">Phone notifications work in the Android app.</p>') +
-    '<h2 class="grouphead">Look</h2><section class="group padded"><div class="seg">' + ['light', 'dark', 'auto'].map((t2) => '<button aria-pressed="' + (S.settings.theme === t2) + '" data-act="theme" data-v="' + t2 + '">' + (t2 === 'auto' ? 'Follow phone' : t2[0].toUpperCase() + t2.slice(1)) + '</button>').join('') + '</div></section>' +
+    '<h2 class="grouphead">Ellie</h2><section class="group">' +
+    navRow('ai-key', 'pen', 'Google AI', window.LeashAI.getKey() ? 'Connected' : 'Add your free key') + '</section>' +
     '<h2 class="grouphead">Your data</h2><section class="group padded stack"><p class="hint">Your money data stays on this phone. Sentences Leash can\'t understand go to Google AI if you add a key. Save a backup so a new phone isn\'t a fresh start.</p>' +
     '<div class="btns"><button class="btn sm" data-act="export-csv">Export to Excel</button><button class="btn ghost sm" data-act="export-json">Backup file</button></div>' +
     '<label class="btn soft sm" style="cursor:pointer">Restore from a backup<input type="file" accept=".json,application/json,text/plain" data-act="restore" hidden></label></section>' +
@@ -861,33 +867,17 @@ const renderReminders = () => {
     '</div>';
 };
 
-const renderGold = () => {
-  const gt = goldTotals(); const need = S.goldTarget ? Math.max(0, S.goldTarget - gt.grams) : 0;
-  return '<div class="screen">' + backBtn() +
-    '<div class="head"><div class="t"><span class="kicker">' + (gt.g && gt.g.src ? 'Rate from ' + esc(gt.g.srcName || 'source') : 'Your gold') + '</span><h1 class="title">Gold locker</h1></div></div>' +
-    goldCard(gt, true) +
-    (gt.g ? '<p class="hint centered">22K on ' + esc(gt.g.date) + ': ' + inr(gt.g.r22) + ' a gram</p>' : '') +
-    '<div class="goldsell"><span>If you sold today</span><b class="num">' + inr(gt.sell) + '</b><span>after a ' + S.goldCut + '% jeweller\'s cut</span>' +
-    '<div class="seg">' + [2, 5, 8, 10].map((n) => '<button aria-pressed="' + (Number(S.goldCut) === n) + '" data-act="gold-cut" data-v="' + n + '">' + n + '%</button>').join('') + '</div></div>' +
-    '<div class="sec"><h2>Pieces</h2><span class="aside">Tap to edit</span></div>' +
-    '<div class="card">' + (S.gold.length ? S.gold.map((x) => '<button class="row" data-act="edit-gold" data-id="' + x.id + '"><span class="ic goldic">' + ico('coin') + '</span><span class="grow"><b>' + esc(x.note || 'Gold') + '</b><span>' + x.grams + ' g · ' + x.karat + 'K' + (x.date ? ' · ' + short(parseKey(x.date)) : '') + '</span></span><span class="amt num">' + inr((Number(x.grams) || 0) * goldRate(x.karat)) + '</span></button>').join('')
-      : '<p class="empty">Locker empty. Add a chain, ring or coin to see what it\'s worth today.</p>') + '</div>' +
-    '<div class="card padded stack"><div class="split"><b>Gold goal</b><button class="link" data-act="gold-goal">' + (S.goldTarget ? 'Change' : 'Set one') + '</button></div>' +
-    (S.goldTarget ? '<p class="hint">' + (need ? need.toFixed(2) + ' g to go ≈ ' + inr(need * goldRate(22)) + ' at today\'s 22K rate.' : 'Goal reached. Shiny.') + '</p>' : '<p class="hint">Pick a number of grams to own, and Leash tracks how close you are.</p>') + '</div>' +
-    '<p class="note">Making charges and GST never come back when you sell. Sold within 24 months, gains are taxed at your slab rate; after that, 12.5%. Get it tested at 2–3 jewellers before selling.</p></div>';
-};
 
 
 /* ---------------- onboarding ---------------- */
 const nextOcc = (day) => { const t = today0(); const d = onDay(t.getFullYear(), t.getMonth(), day); return d >= t ? d : onDay(t.getFullYear(), t.getMonth() + 1, day); };
-let onb = { step: 0, fixed: [{ name: 'PG rent', amount: '', day: 1, kind: 'bill' }, { name: 'EMI', amount: '', day: 30, kind: 'emi' }, { name: 'PPF / savings', amount: '', day: 5, kind: 'save' }] };
+let onb = { step: 0, fixed: [{ name: 'Home', amount: '', day: 1, kind: 'home' }, { name: 'PG rent', amount: '', day: 1, kind: 'bill' }, { name: 'EMI', amount: '', day: 30, kind: 'emi' }, { name: 'PPF / savings', amount: '', day: 5, kind: 'save' }] };
 const renderOnb = () => {
   const dots = '<div class="dots">' + [0, 1].map((i) => '<i class="' + (i <= onb.step ? 'on' : '') + '"></i>').join('') + '</div>';
   if (onb.step === 0) return '<form class="onb" data-form="onb0">' + dots + '<div class="onbface">' + window.ellieSvg('proud', 170) + '</div><h1>Hi, I\'m Ellie!</h1><p class="hint">I take out your bills, loans, savings and money for home, then tell you what\'s safe to spend each day.</p>' +
     '<div class="field"><label for="o-name">What should we call you?</label><input class="input" id="o-name" name="name" autocomplete="given-name" value="' + esc(S.profile.name) + '"></div>' +
     '<div class="field"><label for="o-sal">Monthly salary (in hand)</label><input class="input" id="o-sal" name="salary" inputmode="numeric" placeholder="₹" value="' + (S.profile.salary || '') + '"></div>' +
     paydayFields(S.profile.payday || 1, S.profile.payShift || 'none', false) +
-    '<div class="field"><label for="o-pct">Share of pay sent home (%)</label><input class="input" id="o-pct" name="pct" inputmode="numeric" value="' + (S.profile.homePct ?? 46) + '"></div>' +
     '<span class="spacer"></span><button class="btn full" type="submit">Next</button><button class="link" type="button" data-act="onb-skip">Skip setup</button></form>';
   if (onb.step === 1) return '<form class="onb" data-form="onb1">' + dots + '<h1>What leaves every month?</h1><p class="hint">Leave a row empty to skip it. You can add more, with end dates and reminders, in the Money tab.</p>' +
     onb.fixed.map((f, i) => '<div class="fixedrow"><div class="field"><label for="f-n' + i + '">Name</label><input class="input" id="f-n' + i + '" name="n' + i + '" value="' + esc(f.name) + '"></div><div class="field"><label for="f-a' + i + '">Amount</label><input class="input" id="f-a' + i + '" name="a' + i + '" inputmode="numeric" placeholder="₹" value="' + esc(f.amount) + '"></div>' + calPicker('d' + i, f.first || dkey(nextOcc(f.day)), 'Next due date') + '</div>').join('') +
@@ -919,18 +909,20 @@ const drawSpend = () => {
   const st = sheetState; const c = dayCalc(today0()); const n = num(st.amt);
   const isToday = st.date === dkey(today0()); const isW = !!catOf(st.cat).withdrawal;
   const prevSp = st.id ? S.spends.find((s2) => s2.id === st.id) : null; const prev = prevSp && counts(prevSp) ? Number(prevSp.amt) : 0;
-  const rest = c.left + (isToday ? prev : 0) - (st.fromSavings || isW ? 0 : n);
-  const after = !n ? 'Type an amount' : isW ? 'ATM cash: counts when you spend it' : st.fromSavings ? 'From savings: today\'s number stays put' : !isToday ? 'Logged for ' + short(parseKey(st.date)) : rest >= 0 ? 'Today becomes ' + inr(rest) : inr(-rest) + ' over. Tomorrow shrinks a little.';
+  const off = st.fromSavings || isW || st.method === 'card';
+  const rest = c.left + (isToday ? prev : 0) - (off ? 0 : n);
+  const after = !n ? 'Type an amount' : isW ? 'ATM cash: counts when you spend it' : st.method === 'card' ? 'Credit card: counts when the bill is paid' : st.fromSavings ? 'From savings: today\'s number stays put' : !isToday ? 'Logged for ' + short(parseKey(st.date)) : rest >= 0 ? 'Today becomes ' + inr(rest) : inr(-rest) + ' over. Tomorrow shrinks a little.';
   $('#sheet').innerHTML = '<div class="grab"></div>' + shead(st.id ? 'Edit spend' : 'Add a spend') +
-    (st.id ? '' : '<div class="seg inout"><button type="button" aria-pressed="true">Money out</button><button type="button" data-act="to-moneyin">Money in</button></div>') +
-    '<div class="amtwrap"><span class="amount num' + (n ? '' : ' zero') + '" aria-live="polite">' + inr(n) + '</span><span class="afterpill' + (isToday && n && rest < 0 && !st.fromSavings && !isW ? ' bad' : '') + '">' + esc(after) + '</span></div>' +
+    (st.id ? '' : '<div class="seg inout three"><button type="button" aria-pressed="true">Spent</button><button type="button" data-act="to-pay">Pay</button><button type="button" data-act="to-moneyin">Came in</button></div>') +
+    '<div class="amtwrap"><span class="amount num' + (n ? '' : ' zero') + '" aria-live="polite">' + inr(n) + '</span><span class="afterpill' + (isToday && n && rest < 0 && !off ? ' bad' : '') + '">' + esc(after) + '</span></div>' +
     '<div class="field"><span class="flabel">Category</span><div class="cats" role="group" aria-label="Category">' + S.cats.map((ct) => '<button class="cat" aria-pressed="' + (st.cat === ct.id) + '" data-act="pick-cat" data-id="' + ct.id + '">' + catIc(ct) + esc(ct.name) + '</button>').join('') + '<button class="cat add" data-act="new-cat"><span class="ic">' + ico('plus') + '</span>New</button></div>' +
     '<p class="hint" id="sp-auto" aria-live="polite"></p></div>' +
+    '<div class="field"><span class="flabel">Paid with</span><div class="seg">' + METHODS.map(([v, l]) => '<button type="button" aria-pressed="' + (st.method === v) + '" data-act="pick-method" data-v="' + v + '">' + l + '</button>').join('') + '</div>' +
+    (st.method === 'card' ? '<p class="hint">Shows in where it went now, and leaves your money when you pay the card bill.</p>' : '') + '</div>' +
     '<div class="pad">' + ['1', '2', '3', '4', '5', '6', '7', '8', '9', '00', '0', 'del'].map((k) => '<button data-act="key" data-k="' + k + '" aria-label="' + (k === 'del' ? 'Delete' : k) + '">' + (k === 'del' ? '⌫' : k) + '</button>').join('') + '</div>' +
-    '<details class="more"' + (st.open ? ' open' : '') + '><summary data-act="more-toggle">' + ico('pen') + (st.note || st.method === 'cash' || st.fromSavings || !isToday ? esc([st.note, st.method === 'cash' ? 'cash' : '', st.fromSavings ? 'from savings' : '', !isToday ? short(parseKey(st.date)) : ''].filter(Boolean).join(' · ')) : 'Note, date, cash, from savings, bank SMS') + '</summary><div class="inner">' +
+    '<details class="more"' + (st.open ? ' open' : '') + '><summary data-act="more-toggle">' + ico('pen') + (st.note || st.fromSavings || !isToday ? esc([st.note, st.fromSavings ? 'from savings' : '', !isToday ? short(parseKey(st.date)) : ''].filter(Boolean).join(' · ')) : 'Note, date, from savings') + '</summary><div class="inner">' +
     '<div class="two"><div class="field"><label for="sp-note">Note (optional)</label><input class="input" id="sp-note" data-bind="note" placeholder="What was it?" value="' + esc(st.note) + '" autocomplete="off"></div><div class="field"><label for="sp-date">Date</label><input class="input" type="date" id="sp-date" data-bind="date" max="' + dkey(today0()) + '" value="' + st.date + '"></div></div>' +
     '<div class="sugs" id="sp-sugg">' + suggHtml(st.note) + '</div>' +
-    '<div class="field"><span class="flabel">Paid with</span><div class="seg">' + METHODS.map(([v, l]) => '<button type="button" aria-pressed="' + (st.method === v) + '" data-act="pick-method" data-v="' + v + '">' + l + '</button>').join('') + '</div></div>' +
     '<div class="row" style="border:0;padding:0"><span class="grow"><b>Paid from savings</b><span>Big one-offs like gold. Won\'t touch today\'s number.</span></span><button class="switch" role="switch" aria-checked="' + !!st.fromSavings + '" aria-label="Paid from savings" data-act="pick-savings"></button></div>' +
 
     '</div></details>' +
@@ -955,12 +947,12 @@ const logSpend = (o) => {
 };
 const spendBanner = (n, sp) => {
   const c = dayCalc(today0());
-  if (sp && (sp.fromSavings || catOf(sp.cat).withdrawal)) { banner('Logged ' + inr(n), sp.fromSavings ? 'From savings, so today\'s number stays ' + inr(c.left) + '.' : 'ATM cash. It counts when you spend it.'); return; }
+  if (sp && (sp.fromSavings || sp.method === 'card' || catOf(sp.cat).withdrawal)) { banner('Logged ' + inr(n), sp.fromSavings ? 'From savings, so today\'s number stays ' + inr(c.left) + '.' : sp.method === 'card' ? 'On your credit card. It counts when you pay the card bill.' : 'ATM cash. It counts when you spend it.'); return; }
   banner(c.left >= 0 ? inr(c.left) + ' left today' : inr(-c.left) + ' over today', c.left >= 0 ? 'Logged ' + inr(n) + '. Nicely done.' : 'Logged ' + inr(n) + '. Tomorrow becomes ' + inr(c.tomorrow) + '.');
 };
 
 /* ---------------- telling Ellie ---------------- */
-const flash = (mood) => { ellieFlash = { mood, at: Date.now() }; setTimeout(() => { if (tab === 'today' && !view && !sheetState) render(); }, 8100); };
+const flash = (mood) => { ellieFlash = { mood, at: Date.now() }; setTimeout(() => { if (tab === 'money' && !view && !sheetState) render(); }, 8100); };
 const NO_SPEND = /\b(no spend|didn'?t spend|spent nothing|nothing spent)\b/i;
 const answerTopic = (topic) => {
   const c = dayCalc(today0());
@@ -971,7 +963,6 @@ const answerTopic = (topic) => {
 };
 const topicOf = (t) => (/jar|sav/i.test(t) ? 'jar' : /payday|salary date|when.*pay/i.test(t) ? 'payday' : /spent|where|went/i.test(t) ? 'spent' : 'left');
 const isQuestion = (t) => /\?|^(how|what|when|where|show)\b/i.test(t.trim());
-const spendRows = (list) => list.map((sp) => ({ cat: sp.cat, label: sp.note || catOf(sp.cat).name, amt: sp.amt }));
 const reactToSpends = (added) => {
   const c = dayCalc(today0()); const total = sum(added); const big = c.pool > 0 && total / c.pool >= 0.25;
   const mood = big ? 'careful' : currentMood(c, today0()); flash(mood === 'proud' ? 'happy' : mood);
@@ -1253,9 +1244,23 @@ const popper = () => {
 };
 
 /* ---------------- render ---------------- */
-const applyTheme = () => { const t = S.settings.theme; if (t === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.dataset.theme = t; };
+// One clean light look: white background, pastel cards and 3D icons.
+const applyTheme = () => { document.documentElement.dataset.theme = 'light'; };
 const asDetail = (html) => html.replace('<div class="screen">', '<div class="screen">' + backBtn());
-const VIEWS = { money: () => renderMonth(), jar: () => renderJar(), silver: () => renderSilver(), settings: () => asDetail(renderSettings()), bills: () => renderBills(), cats: () => renderCats(), news: () => renderNews(), tax: () => renderTax(), emi: () => renderEmi(), reminders: () => renderReminders(), gold: () => renderGold(), };
+const VIEWS = { statement: () => renderMonth(), settings: () => asDetail(renderSettings()), allbills: () => renderBills(), cats: () => renderCats(), news: () => renderNews(), tax: () => renderTax(), emi: () => renderEmi(), reminders: () => renderReminders() };
+const TAB_VIEWS = { money: () => renderHome(), bills: () => renderBillsTab(), jar: () => renderJarTab(), gold: () => renderGoldTab() };
+const tabHead = () => {
+  const t = today0(); const g = market().gold;
+  const [title, sub, pic] = {
+    money: [S.profile.name ? 'Hi, ' + S.profile.name : 'Hi there', DAY[t.getDay()] + ', ' + t.getDate() + ' ' + MONTH[t.getMonth()], 'elephant'],
+    bills: ['Bills and EMIs', MONTH[cycMonth(cycleFor(t)).getMonth()], 'spiral_calendar'],
+    jar: ['Savings jar', 'Leftover money lives here', 'coin'],
+    gold: ['Gold and silver', g ? 'Rates for ' + g.date : 'Your gold and silver', 'gem_stone']
+  }[tab];
+  return '<header class="tophead"><button class="me" data-act="settings" aria-label="Open settings">' + esc((S.profile.name || '?').charAt(0).toUpperCase()) + '</button>' +
+    '<span class="tt"><b>' + esc(title) + '</b><span>' + esc(sub) + '</span></span><img class="hpic" src="icons/' + pic + '.png" alt=""></header>' +
+    '<nav class="topnav" aria-label="Main">' + TABS.map(([k, l, i]) => '<button data-tab="' + k + '" data-act="tab"' + (tab === k ? ' aria-current="page"' : '') + '>' + ico(i) + l + '</button>').join('') + '</nav>';
+};
 const render = () => {
   applyTheme();
   const app = $('#app');
@@ -1263,15 +1268,12 @@ const render = () => {
   let body;
   if (view && view.startsWith('mod:')) body = renderModule(view.slice(4));
   else if (view && VIEWS[view]) body = VIEWS[view]();
-  else body = { today: renderToday, jars: renderJars, learn: renderLearn }[tab]();
-  const tabs = [['today', 'Today', 'chat'], ['jars', 'Jars', 'piggy'], ['learn', 'Learn', 'bulb']];
-  app.innerHTML = body +
-    '<nav class="tabs" aria-label="Main">' + tabs.map(([k, l, i]) => '<button data-tab="' + k + '" data-act="tab"' + (tab === k ? ' aria-current="page"' : '') + '>' + ico(i) + l + '</button>').join('') + '</nav>';
-  if (scrollChat && tab === 'today' && !view) { scrollChat = false; window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' }); }
+  else body = (TAB_VIEWS[tab] || TAB_VIEWS.money)().replace(/^<div class="screen([^"]*)">/, (m) => m + tabHead());
+  app.innerHTML = body;
 };
 
 /* ---------------- actions ---------------- */
-const go = (t) => { if (VIEWS[t]) { openView(t); return; } tab = t; view = null; stack.length = 0; render(); window.scrollTo(0, 0); };
+const go = (t) => { if (VIEWS[t]) { openView(t); return; } tab = TAB_VIEWS[t] ? t : 'money'; view = null; stack.length = 0; render(); window.scrollTo(0, 0); };
 const openView = (v) => { stack.push({ tab, view }); view = v; render(); window.scrollTo(0, 0); };
 const goBack = () => { const p = stack.pop(); if (p) { tab = p.tab; view = p.view; } else view = null; render(); window.scrollTo(0, 0); };
 const persist = (msg) => { save(); render(); if (msg) toast(msg); scheduleNotifications(); };
@@ -1303,15 +1305,16 @@ const goalMilestone = (g, before) => {
 const handlers = {
   tab: (el) => go(el.dataset.tab),
   money: () => go('money'),
+  statement: () => openView('statement'),
+  allbills: () => openView('allbills'),
+  'to-pay': () => handlers['pay-other'](),
   settings: () => go('settings'),
   'close-view': () => goBack(),
-  jar: () => openView('jar'),
-  silver: () => openView('silver'),
+  jar: () => go('jar'),
+  silver: () => go('gold'),
   'add-silver': () => silverSheet(),
   'edit-silver': (el) => silverSheet(S.silver.find((x) => x.id === el.dataset.id)),
   'del-silver': () => { S.silver = S.silver.filter((x) => x.id !== sheetState.editId); closeSheet(); persist('Silver removed'); },
-  'card-got': (el) => { S.learned.push(el.dataset.id); persist(); popper(); },
-  'card-open': (el) => { const c = window.LEASH_CARDS.find((x) => x.id === el.dataset.id); openSheet(shead(esc(c.title)) + cardHtml(c, false)); },
   'jar-out': () => { const has = jarBalance(); if (has <= 0) { toast('Your jar is empty. It fills up on payday.'); return; }
     simpleSheet('Take out of the jar', [{ name: 'amt', label: 'How much? You have ' + inr(has), numeric: true, placeholder: '₹' }],
       (d) => { const a = num(d.amt); if (!a || a > has) return false; S.jar.out.push({ id: uid(), amt: a, date: dkey(today0()) }); return inr(a) + ' added to your spending money'; }); },
@@ -1324,8 +1327,8 @@ const handlers = {
   'chat-undo': (el) => { const m = S.chat.find((x) => x.id === el.dataset.id); if (!m || !m.undo) return; const u = m.undo;
     S.spends = S.spends.filter((x) => !(u.spends || []).includes(x.id)); S.income = S.income.filter((x) => !(u.income || []).includes(x.id)); if (u.pay) delete S.paylog[u.pay];
     delete m.undo; m.rows = null; m.text = 'Undone.'; persist(); },
-  bills: () => openView('bills'), cats: () => openView('cats'), news: () => openView('news'), tax: () => openView('tax'),
-  emi: () => openView('emi'), reminders: () => openView('reminders'), gold: () => openView('gold'), badges: () => openView('badges'),
+  bills: () => go('bills'), cats: () => openView('cats'), news: () => openView('news'), tax: () => openView('tax'),
+  emi: () => openView('emi'), reminders: () => openView('reminders'), gold: () => go('gold'),
   module: (el) => openView('mod:' + el.dataset.id),
   'module-soon': (el) => { const m = MODS.find((x) => x.id === el.dataset.id); toast((m && m.blurb ? m.blurb + ' ' : '') + 'Coming soon.'); },
   // spends
@@ -1341,7 +1344,7 @@ const handlers = {
   'close-sheet': () => closeSheet(),
   key: (el) => { const k = el.dataset.k; let a = sheetState.amt; if (k === 'del') a = a.slice(0, -1); else if (a.length < 7) a = (a === '0' ? '' : a) + k; sheetState.amt = a.replace(/^0+(?=\d)/, ''); drawSpend(); },
   'pick-cat': (el) => { sheetState.cat = el.dataset.id; sheetState.catAuto = false; drawSpend(); },
-  'pick-method': (el) => { sheetState.method = el.dataset.v; sheetState.open = true; drawSpend(); },
+  'pick-method': (el) => { sheetState.method = el.dataset.v; drawSpend(); },
   'pick-savings': () => { sheetState.fromSavings = !sheetState.fromSavings; sheetState.open = true; drawSpend(); },
   'more-toggle': () => { setTimeout(() => { const d = document.querySelector('#sheet details.more'); if (d && sheetState) sheetState.open = d.open; }, 0); },
 
@@ -1415,13 +1418,11 @@ const handlers = {
   // settings
   'edit-profile': () => simpleSheet('Your details', [
     { name: 'name', label: 'Name', value: S.profile.name },
-    { name: 'salary', label: 'Monthly salary (in hand)', numeric: true, value: S.profile.salary || '' },
-    { name: 'pct', label: 'Share of pay sent home (%)', numeric: true, value: S.profile.homePct || '' }
+    { name: 'salary', label: 'Monthly salary (in hand)', numeric: true, value: S.profile.salary || '' }
   ], (d) => {
-    S.profile.name = (d.name || '').trim(); S.profile.salary = num(d.salary); S.profile.homePct = clamp(num(d.pct), 0, 100);
-    if (S.profile.homePct && !S.items.some((i) => i.kind === 'home')) S.items.push({ id: uid(), name: 'Sent home', amount: 0, day: 1, kind: 'home', start: mkey(today0()), end: '', remindBefore: 0, paid: {} });
+    S.profile.name = (d.name || '').trim(); S.profile.salary = num(d.salary);
     return 'Saved';
-  }, '', '<p class="hint">The home share comes out of each pay before your daily number. Payday is set in Settings → Payday.</p>'),
+  }, '', '<p class="hint">Money for home is a monthly payment in Bills, like rent.</p>'),
   'toggle-setting': (el) => { const k = el.dataset.key; S.settings[k] = !S.settings[k]; persist(); },
   'toggle-extra': (el) => { const k = el.dataset.key; S.features[k] = !S.features[k]; persist(); },
   theme: (el) => { S.settings.theme = el.dataset.v; persist(); },
@@ -1431,7 +1432,7 @@ const handlers = {
   'simple-seg': (el) => { const f = el.closest('.field'); f.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', b === el)); f.querySelector('input[type=hidden]').value = el.dataset.v; updatePaydayPreview(el); if (el.closest('form[data-form=goldcalc]')) updateGoldCalc(); },
   'export-csv': () => exportCsv(),
   'export-json': () => download('leash-backup-' + dkey(today0()) + '.json', JSON.stringify(S, null, 1), 'application/json'),
-  reset: () => { if (confirm('Erase all Leash data on this device? Make a backup first if you might want it back.')) { S = fresh(); save(); tab = 'today'; view = null; stack.length = 0; render(); } },
+  reset: () => { if (confirm('Erase all Leash data on this device? Make a backup first if you might want it back.')) { S = fresh(); save(); tab = 'money'; view = null; stack.length = 0; render(); } },
   'onb-skip': () => { S.onboarded = true; persist(); },
   'onb-back': () => { onb.step = Math.max(0, onb.step - 1); render(); },
   // calendar picker
@@ -1524,7 +1525,7 @@ document.addEventListener('submit', (ev) => {
   }
   if (kind === 'onb0') {
     const p = readPayday(form);
-    S.profile.name = (d.name || '').trim(); S.profile.salary = num(d.salary); S.profile.payday = p.day; S.profile.payShift = p.shift; S.profile.homePct = clamp(num(d.pct), 0, 100);
+    S.profile.name = (d.name || '').trim(); S.profile.salary = num(d.salary); S.profile.payday = p.day; S.profile.payShift = p.shift; S.profile.homePct = 0;
     S.created = dkey(today0());
     S.start = null;
     onb.step = 1; save(); render(); return;
@@ -1537,8 +1538,7 @@ document.addEventListener('submit', (ev) => {
       const it = { id: uid(), name: f.name, amount: num(f.amount), day: fd.getDate(), kind: f.kind, start: mkey(fd), end: '', remindBefore: 2, paid: {} };
       occIn(it, cyc0).forEach((due) => { if (due < today0()) it.paid[mkey(due)] = 'before-leash'; }); // already happened this month
       S.items.push(it); });
-    if (S.profile.homePct) S.items.push({ id: uid(), name: 'Sent home', amount: 0, day: 1, kind: 'home', start: mkey(today0()), end: '', remindBefore: 0, paid: {} });
-    S.onboarded = true; tab = 'today'; persist(); return;
+    S.onboarded = true; tab = 'money'; persist(); return;
   }
   if (kind === 'item') {
     const st = sheetState; const fd = parseKey(d.first || dkey(today0()));
@@ -1594,7 +1594,7 @@ const AppP = plugin('App');
 if (AppP) AppP.addListener('backButton', () => {
   if ($('#sheet').classList.contains('show')) closeSheet();
   else if (view) goBack();
-  else if (tab !== 'today') go('today');
+  else if (tab !== 'money') go('money');
   else AppP.exitApp();
 });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { render(); refreshMarket(); } });

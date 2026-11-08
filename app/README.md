@@ -77,3 +77,13 @@ Try it in a browser: `npm run serve`, then open http://localhost:8080.
 - `www/vendor/capacitor.js`: Capacitor core (copied by `npm run vendor`)
 - `assets/`: app icon and splash, turned into Android sizes by `@capacitor/assets`
 - `capacitor.config.json`: app id `com.joshnaj.kharcha`
+
+## Leash 3D (November 2026)
+
+- **Tabs** sit in a bar at the top: Money, Bills, Jar and Gold. The round initial at the top left opens Settings.
+- **Money** shows what's safe to spend today in a jar, what went out and came in, and where it went, biggest first.
+- **Bills** marks each payment green (paid), yellow (to pay) or red (due tomorrow, today or late). Tap the pill to mark it paid.
+- **Credit card spends** show in where it went, but only leave your money when the card bill is paid.
+- **Home** is a fixed monthly payment like rent. The old home share percentage is gone.
+- **3D icons** are Microsoft Fluent Emoji (MIT licence, see `www/icons/LICENSE-fluent-emoji.txt`).
+- Removed: the Learn tab, the extras switches, and the dark theme.
