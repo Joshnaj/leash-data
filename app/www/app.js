@@ -736,7 +736,7 @@ const renderSettings = () => {
     navRow('ai-key', 'pen', 'Google AI', window.LeashAI.getKey() ? 'Connected' : 'Add your free key') + '</section>' +
     '<h2 class="grouphead">Your data</h2><section class="group padded stack"><p class="hint">Your money data stays on this phone. Sentences Leash can\'t understand go to Google AI if you add a key. Save a backup so a new phone isn\'t a fresh start.</p>' +
     '<div class="btns"><button class="btn sm" data-act="export-csv">Export to Excel</button><button class="btn ghost sm" data-act="export-json">Backup file</button></div>' +
-    '<label class="btn soft sm" style="cursor:pointer">Restore from a backup<input type="file" data-act="restore" hidden></label></section>' +
+    '<button class="btn soft sm" data-act="restore-pick">Restore from a backup</button></section>' +
     '<button class="btn danger" data-act="reset">Erase everything</button></div>';
 };
 const ordinal = (n) => { n = Number(n) || 1; const s2 = ['th', 'st', 'nd', 'rd']; const v = n % 100; return n + (s2[(v - 20) % 10] || s2[v] || s2[0]); };
@@ -1430,6 +1430,7 @@ const handlers = {
   'edit-cat': (el) => catSheet(S.cats.find((c) => c.id === el.dataset.id)),
   'del-cat': () => { const id = sheetState.editId; if (S.spends.some((x) => x.cat === id)) { toast('This category has spends. Rename it instead.'); return; } S.cats = S.cats.filter((c) => c.id !== id); closeSheet(); persist('Category removed'); },
   'simple-seg': (el) => { const f = el.closest('.field'); f.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', b === el)); f.querySelector('input[type=hidden]').value = el.dataset.v; updatePaydayPreview(el); if (el.closest('form[data-form=goldcalc]')) updateGoldCalc(); },
+  'restore-pick': () => restoreInput.click(),
   'export-csv': () => exportCsv(),
   'export-json': () => download('leash-backup-' + dkey(today0()) + '.json', JSON.stringify(S, null, 1), 'application/json'),
   reset: () => { if (confirm('Erase all Leash data on this device? Make a backup first if you might want it back.')) { S = fresh(); save(); tab = 'money'; view = null; stack.length = 0; render(); } },
@@ -1460,6 +1461,25 @@ const catSheet = (c) => {
   if (c) sheetState.editId = c.id;
 };
 
+/* ---------------- restore ----------------
+   The file picker lives outside #app, so the redraw that happens when Android hides and shows Leash
+   around the picker can't throw it away before the chosen file arrives. */
+const restoreInput = document.createElement('input');
+restoreInput.type = 'file'; restoreInput.hidden = true; restoreInput.setAttribute('aria-hidden', 'true');
+document.body.appendChild(restoreInput);
+const restoreFrom = (f) => {
+  const r = new FileReader();
+  r.onload = () => {
+    let d = null;
+    try { d = JSON.parse(String(r.result).replace(/^﻿/, '').trim()); } catch (e) { d = null; }
+    if (!d || d.v !== 2 || !Array.isArray(d.spends)) { toast('That file is not a Leash backup.'); return; }
+    try { localStorage.setItem(KEY, JSON.stringify(d)); load(); tab = 'money'; view = null; stack.length = 0; persist('Backup restored'); window.scrollTo(0, 0); } catch (e) { toast('The backup could not be restored. Your data is unchanged.'); }
+  };
+  r.onerror = () => toast('Leash could not open that file. Try saving it to Downloads first.');
+  r.readAsText(f);
+};
+restoreInput.addEventListener('change', () => { const f = restoreInput.files && restoreInput.files[0]; restoreInput.value = ''; if (f) restoreFrom(f); });
+
 /* ---------------- events ---------------- */
 document.addEventListener('click', (ev) => {
   if (!ev.target.closest('.cp')) closePickers();
@@ -1485,18 +1505,6 @@ document.addEventListener('change', (ev) => {
   const tg = ev.target;
   if (tg.name === 'payLast') { updatePaydayPreview(tg); return; }
   if (tg.dataset && tg.dataset.tax) { taxIn[tg.dataset.tax] = Math.min(tg.dataset.tax === 'basicPct' ? 100 : 1e9, num(tg.value)); render(); return; }
-  if (tg.dataset && tg.dataset.act === 'restore') {
-    const f = tg.files && tg.files[0]; if (!f) return;
-    const r = new FileReader();
-    r.onload = () => {
-      let d = null;
-      try { d = JSON.parse(String(r.result).replace(/^\uFEFF/, '').trim()); } catch (e) { d = null; }
-      if (!d || d.v !== 2 || !Array.isArray(d.spends)) { toast('That file is not a Leash backup.'); return; }
-      try { localStorage.setItem(KEY, JSON.stringify(d)); load(); persist('Backup restored'); } catch (e) { toast('The backup could not be restored. Your data is unchanged.'); }
-    };
-    r.onerror = () => toast('Leash could not open that file. Try saving it to Downloads first.');
-    r.readAsText(f);
-  }
 });
 document.addEventListener('submit', (ev) => {
   const form = ev.target; const kind = form.dataset.form; if (!kind) return;
