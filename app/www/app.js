@@ -736,7 +736,7 @@ const renderSettings = () => {
     navRow('ai-key', 'pen', 'Google AI', window.LeashAI.getKey() ? 'Connected' : 'Add your free key') + '</section>' +
     '<h2 class="grouphead">Your data</h2><section class="group padded stack"><p class="hint">Your money data stays on this phone. Sentences Leash can\'t understand go to Google AI if you add a key. Save a backup so a new phone isn\'t a fresh start.</p>' +
     '<div class="btns"><button class="btn sm" data-act="export-csv">Export to Excel</button><button class="btn ghost sm" data-act="export-json">Backup file</button></div>' +
-    '<label class="btn soft sm" style="cursor:pointer">Restore from a backup<input type="file" accept=".json,application/json,text/plain" data-act="restore" hidden></label></section>' +
+    '<label class="btn soft sm" style="cursor:pointer">Restore from a backup<input type="file" data-act="restore" hidden></label></section>' +
     '<button class="btn danger" data-act="reset">Erase everything</button></div>';
 };
 const ordinal = (n) => { n = Number(n) || 1; const s2 = ['th', 'st', 'nd', 'rd']; const v = n % 100; return n + (s2[(v - 20) % 10] || s2[v] || s2[0]); };
